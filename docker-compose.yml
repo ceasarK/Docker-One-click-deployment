@@ -1,0 +1,369 @@
+services:
+  mysql:
+    image: ${MYSQL_IMAGE}
+    container_name: mysql
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    env_file: .env
+    environment:
+      - MYSQL_ROOT_PASSWORD=${ROOT_PASSWORD}
+      - TZ=${TZ}
+    ports:
+      - ${MYSQL_PORT}:3306
+    volumes:
+      - ./mysql/data:/var/lib/mysql
+      - ./mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./mysql/sqls:/docker-entrypoint-initdb.d/sqls
+    command:
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+      --default-authentication-plugin=caching_sha2_password
+      --sql-mode=STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION
+      --max-connections=2000
+      --max-allowed-packet=256M
+      --slow_query_log=1
+      --slow_query_log_file=/var/lib/mysql/slow.log
+      --long_query_time=2
+      --bind-address=0.0.0.0
+      --event_scheduler=ON
+    networks:
+      - app-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p$${ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  nacos: # 3.x访问地址为ip:8080,用户名nacos,登录后设置初始密码
+    image: ${NACOS_IMAGE}
+    container_name: nacos
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    env_file: .env
+    environment:
+      - TZ=${TZ}
+      - MODE=standalone
+      - NACOS_AUTH_TOKEN=ZXlKemRXSWlPaUp1WVdOdmN5SXNJbVY0Y0NJNk1UY3hOams1T0RRd01IMA== #eyJzdWIiOiJuYWNvcyIsImV4cCI6MTcxNjk5ODQwMH0
+      - NACOS_AUTH_IDENTITY_KEY=true
+      - NACOS_AUTH_IDENTITY_VALUE=true
+      - SPRING_DATASOURCE_PLATFORM=mysql
+      - MYSQL_SERVICE_HOST=mysql
+      - MYSQL_SERVICE_PORT=3306
+      - MYSQL_SERVICE_DB_NAME=nacos
+      - MYSQL_SERVICE_USER=root
+      - MYSQL_SERVICE_PASSWORD=${ROOT_PASSWORD}
+    volumes:
+      - ./nacos/logs:/home/nacos/logs
+      - ./nacos/conf/application.properties:/home/nacos/conf/application.properties
+    ports:
+      - ${NACOS_CONSOLE_PORT}:8080
+      - ${NACOS_SERVER_PORT}:8848
+      - ${NACOS_GRPC_PORT}:9848
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - app-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  redis:
+    image: ${REDIS_IMAGE}
+    container_name: redis
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    env_file: .env
+    environment:
+      - TZ=${TZ}
+    ports:
+      - ${REDIS_PORT}:6379
+    volumes:
+      - ./redis/data:/data
+      - ./redis/conf/redis.conf:/usr/local/etc/redis/redis.conf  #redis配置，设置密码等
+      - ./logs:/logs
+    command: 
+      - redis-server
+      - /usr/local/etc/redis/redis.conf
+      - --requirepass ${REDIS_PASSWORD}
+    networks:
+      - app-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  rabbitmq:
+    image: ${RABBITMQ_IMAGE}
+    container_name: rabbitmq
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    env_file: .env
+    environment:
+      - TZ=${TZ}
+      - RABBITMQ_DEFAULT_USER=admin
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_DEFAULT_PASS}
+      - RABBITMQ_DEFAULT_VHOST=${RABBITMQ_DEFAULT_VHOST}
+      - RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS=-rabbit log_levels [{connection,error},{default,error}]
+    ports:
+      - ${RABBITMQ_SERVER_PORT}:5672
+      - ${RABBITMQ_CONSOLE_PORT}:15672
+    volumes:
+      - ./rabbitmq/data:/var/lib/rabbitmq
+      - ./rabbitmq/conf/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf
+      - ./rabbitmq/init.sh:/init.sh
+    entrypoint: /bin/sh -c '
+      echo "启动 RabbitMQ 服务..."
+      
+      docker-entrypoint.sh rabbitmq-server &
+      
+      sleep 20
+
+      echo "执行初始化脚本..."
+
+      sh /init.sh 
+      
+      wait'
+    networks:
+      - app-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  minio:
+    image: ${MINIO_IMAGE}
+    container_name: minio
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    env_file: .env
+    environment:
+      - TZ=${TZ}
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
+      - MINIO_DEFAULT_BUCKETS=public,private
+    ports:
+      - ${MINIO_SERVER_PORT}:9000
+      - ${MINIO_CONSOLE_PORT}:9001
+    volumes:
+      - ./minio/data:/data
+      - ./minio/config:/root/.minio
+      - ./minio/init.sh:/init.sh
+    entrypoint: /bin/sh -c '
+      echo "启动 minio 服务..."
+      
+      /usr/bin/docker-entrypoint.sh server /data --console-address ":9001" &
+      
+      sleep 20
+
+      echo "执行初始化脚本..."
+
+      sh /init.sh "${MINIO_ROOT_USER}" "${MINIO_ROOT_PASSWORD}" "${MINIO_SERVER_PORT}" "${MINIO_CONSOLE_PORT}"
+      
+      wait'
+    networks:
+      - app-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  vsftpd:
+    image: ${VSFTPD_IMAGE}
+    container_name: vsftpd
+    ports:
+      - ${VSFTPD_ACTIVE_MODEL_PORT}:20
+      - ${VSFTPD_SERVER_PORT}:21
+      - ${VSFTPD_PASV_MIN_PORT}-${VSFTPD_PASV_MAX_PORT}:${VSFTPD_PASV_MIN_PORT}-${VSFTPD_PASV_MAX_PORT}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    env_file: .env
+    environment:
+      - TZ=${TZ}
+      # 核心：设置默认用户名和密码
+      - FTP_USER=${VSFTPD_USER}
+      - FTP_PASS=${VSFTPD_PASS}
+      # 设置被动模式地址（必须改为服务器实际IP或域名）， 客户端如果是 docker 外部，请替换为您服务器的实际IP
+      - PASV_ADDRESS=${VSFTPD_PASV_ADDRESS}
+      # 被动模式端口范围（需与上面ports映射对应）
+      - PASV_MIN_PORT=${VSFTPD_PASV_MIN_PORT}
+      - PASV_MAX_PORT=${VSFTPD_PASV_MAX_PORT}
+      # 日志输出到标准输出，方便docker logs查看
+      - LOG_STDOUT=true
+      # 禁止匿名访问（安全考虑）
+      - ANONYMOUS_ENABLE=NO
+      # 解决连接问题：设置更长的超时时间
+      - IDLE_SESSION_TIMEOUT=600
+      - DATA_CONNECTION_TIMEOUT=120
+    volumes:
+      # 持久化存储：将FTP用户目录映射到本地
+      - ./ftp/data:/home/vsftpd/ftpuser
+      # 持久化存储：将日志目录映射到本地
+      - ./ftp/logs:/var/log/vsftpd
+    networks:
+      - app-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "ss -tulpn | grep -q :21 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+#----------------------------应用----------------------------------
+
+  gateway:
+    image: ${APP_IMAGE}
+    container_name: gateway
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    env_file: .env
+    environment:
+      - TZ=${TZ}
+    ports:
+      - ${GATEWAY_PORT}:8080
+    volumes:
+      - ./app/gateway/app.jar:/opt/app/app.jar
+      - ./app/gateway/logs:/logs
+    entrypoint: [
+      "java",
+      "-Dfile.encoding=UTF-8",
+      "-Dserver.port=8080",
+      "-Dspring.profiles.active=prod",
+      "-Dspring.application.name=gateway",
+      "-Dspring.cloud.nacos.server-addr=nacos:${NACOS_SERVER_PORT}",
+      "-Dspring.cloud.nacos.username=nacos",
+      "-Dspring.cloud.nacos.password=admin",
+      "-Dspring.cloud.nacos.discovery.namespace=zjmfz-mini-rig",
+      "-Dspring.cloud.nacos.discovery.group=DEFAULT_GROUP",
+      "-Dspring.cloud.nacos.config.namespace=zjmfz-mini-rig",
+      "-Dspring.cloud.nacos.config.group=DEFAULT_GROUP",
+      "-jar",
+      "/opt/app/app.jar"
+    ]
+    depends_on:
+      nacos:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - app-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "/usr/bin/curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  test-rig:
+    image: ${APP_IMAGE}
+    container_name: test-rig
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    env_file: .env
+    environment:
+      - TZ=${TZ}
+    volumes:
+      - ./app/test-rig/app.jar:/opt/app/app.jar
+      - ./app/test-rig/logs:/logs
+    entrypoint: [
+      "java",
+      "-Dfile.encoding=UTF-8",
+      "-Dserver.port=8080",
+      "-Dspring.profiles.active=prod",
+      "-Dspring.application.name=test-rig",
+      "-Dspring.cloud.nacos.server-addr=nacos:${NACOS_SERVER_PORT}",
+      "-Dspring.cloud.nacos.username=nacos",
+      "-Dspring.cloud.nacos.password=admin",
+      "-Dspring.cloud.nacos.discovery.namespace=zjmfz-mini-rig",
+      "-Dspring.cloud.nacos.discovery.group=DEFAULT_GROUP",
+      "-Dspring.cloud.nacos.config.namespace=zjmfz-mini-rig",
+      "-Dspring.cloud.nacos.config.group=DEFAULT_GROUP",
+      "-jar",
+      "/opt/app/app.jar"
+    ]
+    depends_on:
+      nacos:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks:
+      - app-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "/usr/bin/curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  iot:
+    image: ${APP_IMAGE}
+    container_name: iot
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    env_file: .env
+    environment:
+      - TZ=${TZ}
+    ports:
+      - ${IOT_UDP_PORT}:9082/udp
+    volumes:
+      - ./app/iot/app.jar:/opt/app/app.jar
+      - ./app/iot/logs:/logs
+    entrypoint: [
+      "java",
+      "-Dfile.encoding=UTF-8",
+      "-Dserver.port=8080",
+      "-Dspring.profiles.active=prod",
+      "-Dspring.application.name=iot",
+      "-Dspring.cloud.nacos.server-addr=nacos:${NACOS_SERVER_PORT}",
+      "-Dspring.cloud.nacos.username=nacos",
+      "-Dspring.cloud.nacos.password=admin",
+      "-Dspring.cloud.nacos.discovery.namespace=zjmfz-mini-rig",
+      "-Dspring.cloud.nacos.discovery.group=DEFAULT_GROUP",
+      "-Dspring.cloud.nacos.config.namespace=zjmfz-mini-rig",
+      "-Dspring.cloud.nacos.config.group=DEFAULT_GROUP",
+      "-jar",
+      "/opt/app/app.jar"
+    ]
+    depends_on:
+      nacos:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - app-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "/usr/bin/curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+#-----------------------------网络----------------------------------
+
+networks:
+  app-network:
+    driver: bridge
+    name: app-network
