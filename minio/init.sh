@@ -90,7 +90,7 @@ if wait_for_minio; then
 #    safe_exec mc admin user add myminio mini-rig minirigadmin
   
     #授权用户一个桶的读写权限
-#    safe_exec mc admin policy attach myminio readwrite --user mini-rig
+#    safe_exec mc admin policy attach admin readwrite --user mini-rig
 
     #设置桶数据可下载（不受权限限制）
     safe_exec mc anonymous set download myminio/mini-rig

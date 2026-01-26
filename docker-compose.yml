@@ -255,9 +255,9 @@ services:
       "/opt/app/app.jar"
     ]
     depends_on:
-      nacos:
+      test-rig:
         condition: service_healthy
-      redis:
+      iot:
         condition: service_healthy
     networks:
       - app-network
