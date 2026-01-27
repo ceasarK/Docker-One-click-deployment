@@ -134,6 +134,30 @@
 - Docker Engine 20.10+
 - Docker Compose v2+
 
+#### 安装WSL2内核
+- 双击运行 ·./install/wsl.2.6.3.0.x64.msi`
+
+#### 安装docker
+- 双击运行 ·./install/Docker Desktop Installer.exe`,按提示傻瓜式安装
+
+#### 加载镜像
+- docker load < ./images/app-images.tar
+- docker load < ./images/rabbitmq4.tar
+- docker load < ./images/vsftpd.tar
+
+#### 启动
+- docker compose up -d
+
+#### 验证
+- docker compose ps
+
+#### 设置开机自启
+- 打开windows任务管理（按住win+R,输入taskschd.msc）
+- 常规：不管用户是否登录都要运行，使用最高权限运行，配置：windows10（按自己 windows 版本选择）
+- 触发器：启动时，并在最下方设置已开启
+- 启动程序：docker，添加参数：desktop start
+
+
 ### 快速启动
 
 1. **克隆项目**

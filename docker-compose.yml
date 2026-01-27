@@ -30,7 +30,7 @@ services:
       - app-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p$${ROOT_PASSWORD}"]
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p$${ROOT_PASSWORD} && mysql -uroot -p$${ROOT_PASSWORD} -e 'USE nacos; USE zjmfz_mini_rig;'"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -88,7 +88,7 @@ services:
       - ./redis/data:/data
       - ./redis/conf/redis.conf:/usr/local/etc/redis/redis.conf  #redis配置，设置密码等
       - ./logs:/logs
-    command: 
+    command:
       - redis-server
       - /usr/local/etc/redis/redis.conf
       - --requirepass ${REDIS_PASSWORD}
@@ -129,7 +129,7 @@ services:
 
       echo "执行初始化脚本..."
 
-      sh /init.sh 
+      sh /init.sh
       
       wait'
     networks:
@@ -223,7 +223,7 @@ services:
       retries: 5
       start_period: 30s
 
-#----------------------------应用----------------------------------
+  #----------------------------应用----------------------------------
 
   gateway:
     image: ${APP_IMAGE}
