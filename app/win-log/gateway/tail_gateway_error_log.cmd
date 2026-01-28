@@ -1,2 +1,2 @@
 @echo off
-powershell -Command "Get-Content  -Path "..\..\gateway\logs\gateway\gateway-error.log" -Encoding UTF8  -Wait"
+powershell -Command "Get-Content  -Path "..\..\gateway\logs\gateway\gateway-error.log" -Encoding UTF8 -Tail 100  -Wait"
