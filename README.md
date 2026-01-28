@@ -128,22 +128,23 @@
 - MinIO: 检查健康端点 `/minio/health/live`
 - 应用服务: 通过 `/actuator/health` 检查应用状态
 
-## 安装部署
-
-### 环境要求
-- Docker Engine 20.10+
-- Docker Compose v2+
+## windows 安装部署
 
 #### 安装WSL2内核
 - 双击运行 ·./install/wsl.2.6.3.0.x64.msi`
 
 #### 安装docker
 - 双击运行 ·./install/Docker Desktop Installer.exe`,按提示傻瓜式安装
-
+- 重启
+#### ip 配置
+> 因 ftp 被动模式需要知道宿主机ip，需进行如下配置
+> 
+> 1. 修改 `.env` 文件中的`VSFTPD_PASV_ADDRESS` 参数值为对应的宿主机IP地址
+> 
+> 2. 程序中连接的FTP服务器地址改为对应的宿主机IP地址
 #### 加载镜像
 - docker load < ./images/app-images.tar
-- docker load < ./images/rabbitmq4.tar
-- docker load < ./images/vsftpd.tar
+- 需等待几分钟，过程中可能卡输出，可不定时按下回车，查看是否已完成，完成后会显示加载的镜像列表
 
 #### 启动
 - docker compose up -d
@@ -153,29 +154,29 @@
 
 #### 设置开机自启
 - 打开windows任务管理（按住win+R,输入taskschd.msc）
-- 常规：不管用户是否登录都要运行，使用最高权限运行，配置：windows10（按自己 windows 版本选择）
-- 触发器：启动时，并在最下方设置已开启
-- 启动程序：docker，添加参数：desktop start
-
-
-### 快速启动
-
-1. **克隆项目**
-   ```bash
-   git clone <repository-url>
-   cd docker-compose-project
-   ```
-
-2. **启动所有服务**
-   ```bash
-   docker compose up -d
-   ```
-
-3. **验证启动状态**
-   ```bash
-   docker compose ps
-   ```
-
+- 常规：
+  - 名称：Docker Desktop Auto Start
+  - 描述：Docker开机自启
+  - 安全选项：
+    - 勾选：不管用户是否登录都要运行
+    - 勾选：使用最高权限运行
+  - 配置选项：
+    - 勾选：windows10（按自己 windows 版本选择）
+- 触发器：
+  - 点击新建
+    - 开始任务：选择“启动时”
+    - 最底部勾选“已启用”
+    - 点击确定
+- 操作：
+  - 点击新建
+  - 操作：选择“启动程序”
+  - 程序：输入：`docker`
+  - 添加参数：输入：`desktop start`
+  - 点击确定
+- 条件：所有框全部取消勾选
+- 设置：所有框全部取消勾选
+- 点击确定（可能需要输入账户密码，输入对应的账户密码即可，若没有密码则设置账户密码）
+- 重启计算机，测试docker 程序是否有启动，可以通过cmd运行 `docker compose ps` 命令查看服务是否正常运行
 ## 访问地址
 
 | 服务 | Web 访问地址 | 服务连接地址 | 账号密码 |
