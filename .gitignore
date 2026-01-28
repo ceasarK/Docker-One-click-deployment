@@ -48,3 +48,5 @@ nbdist/
 */data/*
 */logs/*
 images/*
+install/*
+other/*
