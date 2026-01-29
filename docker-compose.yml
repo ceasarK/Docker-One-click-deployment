@@ -255,9 +255,57 @@ services:
       "/opt/app/app.jar"
     ]
     depends_on:
+      avionics-simulation:
+        condition: service_healthy
       test-rig:
         condition: service_healthy
       iot:
+        condition: service_healthy
+    networks:
+      - app-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "/usr/bin/curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  avionics-simulation:
+    image: ${APP_IMAGE}
+    container_name: avionics-simulation
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    env_file: .env
+    environment:
+      - TZ=${TZ}
+    volumes:
+      - ./app/avionics-simulation/app.jar:/opt/app/app.jar
+      - ./app/avionics-simulation/logs:/logs
+    entrypoint: [
+      "java",
+      "-Dfile.encoding=UTF-8",
+      "-Dserver.port=8080",
+      "-Dspring.profiles.active=prod",
+      "-Dspring.application.name=avionics-simulation",
+      "-Dspring.cloud.nacos.server-addr=nacos:${NACOS_SERVER_PORT}",
+      "-Dspring.cloud.nacos.username=nacos",
+      "-Dspring.cloud.nacos.password=admin",
+      "-Dspring.cloud.nacos.discovery.namespace=zjmfz-mini-rig",
+      "-Dspring.cloud.nacos.discovery.group=DEFAULT_GROUP",
+      "-Dspring.cloud.nacos.config.namespace=zjmfz-mini-rig",
+      "-Dspring.cloud.nacos.config.group=DEFAULT_GROUP",
+      "-jar",
+      "/opt/app/app.jar"
+    ]
+    depends_on:
+      nacos:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      minio:
         condition: service_healthy
     networks:
       - app-network

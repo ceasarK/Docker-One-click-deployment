@@ -129,17 +129,18 @@
 - 应用服务: 通过 `/actuator/health` 检查应用状态
 
 ## windows 安装部署
-
+> 进入此文件目录下的 cmd 命令行
 #### 安装WSL2内核
 - 双击运行 ·./install/wsl.2.6.3.0.x64.msi`
 
 #### 安装docker
 - 双击运行 ·./install/Docker Desktop Installer.exe`,按提示傻瓜式安装
 - 重启
+- 重启后打开 Docker Desktop（桌面会有对应图标）
 #### ip 配置
 > 因 ftp 被动模式需要知道宿主机ip，需进行如下配置
 > 
-> 1. 修改 `.env` 文件中的`VSFTPD_PASV_ADDRESS` 参数值为对应的宿主机IP地址
+> 1. 修改 `.env` 文件中的`VSFTPD_PASV_ADDRESS` 参数值为当前宿主机IP地址
 > 
 > 2. 程序中连接的FTP服务器地址改为对应的宿主机IP地址
 #### 加载镜像
@@ -246,3 +247,20 @@ docker compose up -d
 - 配置文件可通过挂载卷进行自定义
 - 定期备份数据目录确保数据安全
 - 使用 docker-compose 的健康检查功能监控服务状态
+## other
+### svit
+>
+> 添加：netsh interface portproxy add v4tov4 listenport=18080 listenaddress=0.0.0.0 connectport=80 connectaddress=192.168.56.101
+>
+> 删除: netsh interface portproxy delete v4tov4 listenport=18080 listenaddress=0.0.0.0
+>
+>1.启动虚拟机软件Oracle VirtualBox，启动镜像svit-docker(2.0.9.1-p1)，直至启动完毕
+>
+>2.打开远程SSH工具，远程地址：192.168.56.101，用户名：svit，密码：svit123
+>
+>3.输入命令：cd /home/svit/svit-docker/
+>
+>4.输入命令：sudo docker compose -f dockercompose/server-only/docker-compose.yml --env-file init-env/server-config.env up -d
+>
+>5.浏览器输入地址：192.168.56.101，可利用管理员账户登录：admin@svit.com，密码：svit123456
+
